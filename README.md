@@ -23,6 +23,8 @@ CSV file containing the following:
 
 Protospacers and guides for twinPE are labelled relative to the strand identity of the target sequence.
 
+For each genomic target, the top five regions are returned with transcripts, sensors and guides for each region.
+
 ## Usage
 `RPT.py -i <input_FASTA> -o <output_CSV> -a <attB_sequence>`
 
