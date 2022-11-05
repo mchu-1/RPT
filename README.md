@@ -22,7 +22,7 @@ CSV file containing the following:
 - Guide RNAs for the attB insertion
 
 ## Usage
-'RPT.py -i <input_FASTA> -o <output_CSV> -a <attB_sequence>'
+`RPT.py -i <input_FASTA> -o <output_CSV> -a <attB_sequence>`
 
 ## References
 1. Jiang, K., Koob, J., Chen, X.D., Krajeski, R.N., Zhang, Y., Volf, V., Zhou, W., Sgrizzi, S.R., Villiger, L., Gootenberg, J.S., Chen, F., & Abudayyeh, O.O. 2022. Programmable eukaryotic protein synthesis with RNA sensors by harnessing ADAR. Nature Biotechnology.
