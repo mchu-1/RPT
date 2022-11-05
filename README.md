@@ -6,7 +6,7 @@ Given an untranscribed target region in the genome, twinPE<sup>5</sup> guide RNA
 
 An RNAPIII promoter is then delivered with the cargo into the genome at the attB site and creates a short RNA transcript from the untranscribed sequence once integrated, or 'trapped', within the genome.
 
-This can then be targeted using a custom RNA sensor to isolate successful recombinant clones.
+This transcript can then be targeted using a custom RNA sensor to isolate successful recombinant clones.
 
 ## Input
 - FASTA file containing untranscribed genomic target sequence(s)
