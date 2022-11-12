@@ -29,7 +29,7 @@ def find_terminator(sequence: str, start: int = 0) -> int:
     """
     Find the first RNAPIII termination signal in a sequence.
     """
-    terminator = sequence.find("T" * 7, start)  # 7 T termination signal
+    terminator = sequence.find("T"*7, start)  # 7 T termination signal
 
     return terminator
 
@@ -144,8 +144,8 @@ def score_stops(transcript: str) -> float:
     stops = [rev_comp(s) for s in ["TAG", "TAA", "TGA"]]  # antisense sequence of stops
 
     stop_count = 0
-    for i in range(0, len(transcript) - 2):
-        if transcript[i:i + 3] in stops:  # count number of stops in any frame
+    for i in range(0, len(transcript)-2):
+        if transcript[i:i+3] in stops:  # count number of stops in any frame
             stop_count += 1
         else:
             continue
@@ -224,7 +224,7 @@ def generate_twinpe_guide(protospacer: str, template: str, pbs_length: int = 13,
         spacer = protospacer
 
     pbs = spacer[:-3][-pbs_length:]
-    rtt_length = (len(template) + overlap_length) // 2  # length of RTT for twinPE insertion based on overlap between guides
+    rtt_length = (len(template)+overlap_length)//2  # length of RTT for twinPE insertion based on overlap between guides
     rtt = template[:rtt_length]
 
     guide = spacer + scaffold + rev_comp(pbs + rtt) + motif
@@ -271,16 +271,16 @@ def generate_sensors_and_guides(input_filename, output_filename, attb_sequence: 
             sense_index, antisense_index, termination = coord
             # index of sense protospacer, antisense protospacer and termination of transcript
 
-            region = sequence[sense_index: termination + 7]
+            region = sequence[sense_index: termination+7]
             regions.append(region)
 
-            target_transcript = sequence[antisense_index - 16: termination]
+            target_transcript = sequence[antisense_index-16: termination]
             transcripts.append(target_transcript)
 
             target_sensor = RADAR.generate_sensor(target_transcript) # generate RNA sensor against transcript
             sensors.append(target_sensor)
 
-            sense_protospacer = sequence[sense_index: sense_index + 20]
+            sense_protospacer = sequence[sense_index: sense_index+20]
             sense_protospacers.append(sense_protospacer)
 
             antisense_protospacer = rev_comp(sequence[antisense_index-19: antisense_index+1])
