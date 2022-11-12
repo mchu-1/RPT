@@ -2,7 +2,7 @@
 Python script to create RNA sensors<sup>1-3</sup> for the isolation of PASTE<sup>4</sup> recombinants by reverse promoter trapping (RPT).
 
 ## Description
-Given an untranscribed target region in the genome, twinPE<sup>5</sup> guide RNAs are generated to insert a desired attB sequence.
+Given an untranscribed target site in the genome, twinPE<sup>5</sup> guide RNAs are generated to insert an attB sequence.
 
 An RNAPIII promoter is then delivered with the cargo into the genome at the attB site and creates a short RNA transcript from the untranscribed sequence once integrated, or 'trapped', within the genome. Transcripts are terminated by T homopolymers found within the native genomic sequence.
 
