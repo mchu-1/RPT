@@ -1,5 +1,5 @@
 # RPT
-Python script to create RNA sensors<sup>1-3</sup> for the isolation of PASTE<sup>4</sup> recombinants by reverse promoter trapping (RPT).
+Python script to create RNA sensors<sup>1-3</sup> for the isolation of PASTE<sup>4</sup> recombinants by reverse promoter trapping.
 
 ## Description
 Given an untranscribed target site in the genome, twinPE<sup>5</sup> guide RNAs are generated to insert an attB sequence.
