@@ -1,6 +1,6 @@
 # RPT.py
 
-"""Generate sensible transcripts by reverse promoter trapping (RPT) within a target genomic context for the isolation of PASTE recombinants."""
+"""Generate RNA sensors for the isolation of PASTE recombinants by reverse promoter trapping (RPT)."""
 
 import argparse
 from DNA import rev_comp
@@ -13,7 +13,7 @@ def parse_args():
     Parse input FASTA and output CSV filenames.
     Parse attB sequence for PASTE.
     """
-    parser = argparse.ArgumentParser(description = "Generate sensible transcripts by reverse promoter trapping (RPT) within a target genomic context for the isolation of PASTE recombinants.")
+    parser = argparse.ArgumentParser(description = "Generate RNA sensors for the isolation of PASTE recombinants by reverse promoter trapping (RPT).")
 
     parser.add_argument("-i", "--input", type = str, metavar = "", required = True, help = "Input FASTA file name.")
     parser.add_argument("-o", "--output", type = str, metavar = "", required = True, help = "Output CSV file name.")
@@ -125,13 +125,55 @@ def find_end_of_terminator(sequence: str, terminator: int = 0) -> int:
     return end
 
 
-def can_prematurely_terminate(sequence: str) -> bool:
+def contains_repeats(sequence: str) -> bool:
     """
-    Determine whether a transcript can prematurely terminate based on the length of internal T homopolymers.
+    Determine whether a sequence contains any repeats.
     """
-    premature_terminator = "T" * 5  # minimal efficient transcript release signal in yeast is a T homopolymer of length 5 (http://dx.doi.org/10.1016/j.molcel.2015.04.002)
+    counter = 1
+    base = "N"
 
-    if premature_terminator in sequence:
+    for i in range(1, len(sequence)):
+        next_base = sequence[i]
+        if next_base == base:
+            counter += 1
+            if next_base == "A" and counter == 10:
+                return True
+            if next_base == "T" and counter == 5:
+                return True  # avoid repeats of 5 or more T's which can pause or terminate RNAPIII transcription
+            if (next_base == "G" or next_base == "C") and counter == 6:
+                return True
+        else:
+            counter = 1
+        base = next_base
+
+    return False
+
+
+def calculate_gc_content(sequence: str) -> float:
+    """
+    Calculate the GC content of a sequence.
+    """
+    gc_count = 0
+
+    for i in range(len(sequence)):
+        if sequence[i] == "G" or sequence[i] == "C":
+            gc_count += 1
+        else:
+            continue
+
+    gc_content = gc_count/len(sequence)
+
+    return gc_content
+
+
+def has_optimal_gc_content(sequence: str, lower_limit: float = 0.25, upper_limit: float = 0.75) -> bool:
+    """
+    Determine whether the GC content of a sequence falls within an optimal range.
+    Optimal range is defined between a lower limit and upper limit (default: 0.25, 0.75).
+    """
+    gc_content = calculate_gc_content(sequence)
+
+    if lower_limit <= gc_content <= upper_limit:
         return True
     else:
         return False
@@ -164,47 +206,49 @@ def find_target_transcripts(sequence: str, k: int) -> list:
     """
     top_coords = [None]*k
     top_scores = [1]*k
+    i = 0
     terminator = 0
 
     while True:
-
         start_index = find_end_of_terminator(sequence, terminator)  # start search downstream of terminator
         terminator = find_terminator(sequence, start_index)  # find the first terminator
 
         if terminator == -1:
             break
 
-        antisense_protospacer = find_antisense_protospacer(sequence,
-                                                          terminator)  # find proximal protospacer
+        antisense_protospacer = find_antisense_protospacer(sequence, terminator)  # find proximal protospacer
 
         while antisense_protospacer >= 0:
-            sense_protospacer = find_sense_protospacer(sequence,
-                                                        antisense_protospacer)  # find distal protospacer
+            sense_protospacer = find_sense_protospacer(sequence, antisense_protospacer)  # find distal protospacer
 
             if sense_protospacer == -1:
-                break
+                antisense_protospacer = find_next_antisense_protospacer(sequence, antisense_protospacer)
+                continue
 
             transcript_start = antisense_protospacer - 16  # start index of new transcript from Cas9 cleavage site of proximal protospacer
             transcript_end = terminator
 
-            new_transcript = sequence[transcript_start:transcript_end]  # new transcript
+            new_transcript = sequence[transcript_start: transcript_end]  # new transcript
 
-            if can_prematurely_terminate(new_transcript):
+            if contains_repeats(new_transcript):  # ignore transcripts with repeats (sensors will be difficult to synthesize)
                 break
+
+            if not has_optimal_gc_content(new_transcript):  # ignore transcripts with extreme GC content (sensors will be difficult to synthesize)
+                antisense_protospacer = find_next_antisense_protospacer(sequence, antisense_protospacer)
+                continue
 
             new_score = score_stops(new_transcript)  # score new transcript by number of stops
 
-            for i in range(k):
-                if top_scores[i] < new_score:  # compare stop score to top scores (lower is better)
-                    continue
-                else:
-                    top_scores[i] = new_score # update top scores
-                    top_coords[i] = (sense_protospacer, antisense_protospacer,
-                                     terminator)  # coordinates of protospacers and transcript termination with top scores
-                    break
+            if top_scores[i] < new_score:
+                antisense_protospacer = find_next_antisense_protospacer(sequence, antisense_protospacer)
+                continue
 
-            antisense_protospacer = find_next_antisense_protospacer(sequence,
-                                                                   antisense_protospacer)  # find next proximal protospacer
+            top_scores[i] = new_score  # if new score is better than worst top score, update top scores
+            top_coords[i] = (sense_protospacer, antisense_protospacer, terminator)  # add coordinates of protospacer and transcript terminator for new score
+
+            _, i = max((score, index) for index, score in enumerate(top_scores))  # update index of worst top score
+
+            antisense_protospacer = find_next_antisense_protospacer(sequence, antisense_protospacer)
 
     top_coords = [coord for coord in top_coords if coord]  # take coordinates of top k or fewer transcripts and their protospacers
 
@@ -215,8 +259,8 @@ def generate_twinpe_guide(protospacer: str, template: str, pbs_length: int = 13,
     """
     Generate guide RNA to insert attB template at a target protospacer using twinPE.
     """
-    motif = "CGCGGTTCTATCTAGTTACGCGTTAAACCAACTAGAA"  # tevopreq1 motif
-    scaffold = "GTTTAAGAGCTAAGCTGGAAACAGCATAGCAAGTTTAAATAAGGCTAGTCCGTTATCAACTCGAAAGAGTGGCACCGAGTCGGTGCT"  # F+E cr772 tracrRNA
+    motif = "CGCGGTTCTATCTAGTTACGCGTTAAACCAACTAGAA" # tevopreq1 motif
+    scaffold = "GTTTAAGAGCTAAGCTGGAAACAGCATAGCAAGTTTAAATAAGGCTAGTCCGTTATCAACTCGAAAGAGTGGCACCGAGTCGGTGCT" # F+E tracrRNA
 
     if not protospacer[0] == "G":  # add 5' G to spacer if necessary
         spacer = "G" + protospacer
@@ -230,6 +274,7 @@ def generate_twinpe_guide(protospacer: str, template: str, pbs_length: int = 13,
     guide = spacer + scaffold + rev_comp(pbs + rtt) + motif
 
     return guide
+
 
 def generate_sensors_and_guides(input_filename, output_filename, attb_sequence: str, number_of_transcripts: int) -> None:
     """
@@ -309,6 +354,7 @@ def generate_sensors_and_guides(input_filename, output_filename, attb_sequence: 
     df.to_csv(output_filename + ".csv", sep = ",", encoding = "utf-8", index = False)
 
     print("Completed successfully!")
+
 
 if __name__ == "__main__":
 

@@ -16,6 +16,7 @@ def is_editing_site(anticodon: str) -> bool:
     else:
         return False
 
+
 def find_editing_sites(frame: str) -> list[int]:
     """
     Find starting positions of all possible ADAR editing sites in a reading frame.
@@ -30,24 +31,32 @@ def find_editing_sites(frame: str) -> list[int]:
     return edit_positions
 
 
-def distance_between_editing_sites(position_1, position_2: int) -> int:
-    """
-    Calculate distance between ADAR editing sites.
-    """
-    return position_2 - position_1
-
 def is_in_frame(position_1, position_2: int) -> bool:
     """
     Determine whether a pair of ADAR editing sites are in frame with each other.
     """
-    frameshift = distance_between_editing_sites(position_1, position_2) % 3 # frameshift based on distance between edit sites
+    frameshift = (position_2 - position_1) % 3 # frameshift based on distance between edit sites
     if frameshift == 0:
         return True
     else:
         return False
 
 
-def choose_editing_sites(sequence: str) -> tuple[int]:
+def get_optimal_editing_sites(sequence: str) -> tuple[int, int]:
+    """
+    Get positions of the optimal editing sites for a sequence.
+    """
+    position_1 = len(sequence) // 4 # first optimal editing site at approximately the one-quarter position
+    position_2 = 3 * position_1 # second optimal editing site at approximately the three-quarter position
+
+    optimal_editing_sites = position_1, position_2
+    # distance between optimal editing sites is approximately half the length of the sequence
+    # centre position between optimal editing sites is approximately the centre of the sequence
+
+    return optimal_editing_sites
+
+
+def choose_editing_sites(sequence: str) -> tuple[int, int]:
     """
     Choose ADAR editing sites in a target sequence based on edit distances for all pairs of possible editing sites.
     """
@@ -57,9 +66,12 @@ def choose_editing_sites(sequence: str) -> tuple[int]:
 
     pairwise_sites = [sites for sites in combinations(editing_sites, 2) if is_in_frame(*sites)]
     # list all pairs of editing sites which are in frame with each other
-    optimal_distance = len(sequence) // 2 # optimal distance between editing sites set at half the length of the target sequence
-    ranked_pairs = sorted(pairwise_sites, key = lambda sites: abs(distance_between_editing_sites(*sites) - optimal_distance))
-    # rank pairs of editing sites based on how closely the distance between them approximates the optimal distance
+
+    optimal_sites = get_optimal_editing_sites(sequence)
+
+    ranked_pairs = sorted(pairwise_sites, key = lambda sites: (sites[0] - optimal_sites[0])**2 + (sites[1] - optimal_sites[1])**2)
+    # rank pairs of editing sites based on how closely they approximate the optimal editing sites
+    # use squared Euclidean distance to determine proximity to the optimum
 
     best_edit_sites = ranked_pairs[0] # best pair of editing sites
 
@@ -68,7 +80,7 @@ def choose_editing_sites(sequence: str) -> tuple[int]:
 
 def generate_target_frame(sequence: str) -> str:
     """
-    Choose frame of sequence to be targeted by RNA sensor based on the positions of the optimal pair of editing sites.
+    Choose frame of sequence to be targeted by RNA sensor based on the positions of the best pair of editing sites.
     Mark the editing sites and return the sequence in the chosen frame.
     """
     editing_sites = choose_editing_sites(sequence) # optimal editing sites
@@ -78,11 +90,49 @@ def generate_target_frame(sequence: str) -> str:
         marked_sequence = marked_sequence[:site] + "NNN" + marked_sequence[site+3:]
         # mark editing sites with degenerate bases
 
-    left_index = editing_sites[0] % 3  # index of the first base in frame with the editing sites
-    right_offset = len(sequence[left_index:]) % 3  # number of bases at the end of the sequence which are out of frame with the editing sites
-    right_index = len(sequence) - right_offset # index of last base in frame with the editing sites
+    left_flank = editing_sites[0] # length of sequence flanking left editing site
+    right_flank = len(sequence) - editing_sites[1] # length of sequence flanking right editing site
 
-    sequence_in_frame = marked_sequence[left_index:right_index]  # sequence in frame with the optimal editing sites
+    left_flank -= left_flank % 3
+    right_flank -= right_flank % 3
+    # take highest flank lengths divisible by 3
+
+    missing_length = 350 - (editing_sites[1] - editing_sites[0]) # missing length from ideal sensor (350 bp)
+    missing_length -= missing_length % 3 # take highest missing length divisible by 3
+
+    if missing_length % 2 == 0:
+        left_extension, right_extension = missing_length//2, missing_length//2
+    else:
+        left_extension, right_extension = (missing_length-3)//2, (missing_length+3)//2
+    # length of extensions required to fill missing lengths on left and right of editing sites
+
+    left_index = editing_sites[0]
+    right_index = editing_sites[1]
+    # begin indexing the ends of the target frame from the editing sites
+
+    if left_extension <= left_flank and right_extension <= right_flank:
+        left_index -= left_extension
+        right_index += right_extension
+    elif left_extension <= left_flank and right_extension > right_flank:
+        deficit = right_extension - right_flank
+        surplus = left_flank - left_extension
+        right_index += right_flank
+        if surplus >= deficit:
+            left_index -= left_extension + deficit
+        else:
+            left_index -= left_extension + surplus
+    elif left_extension > left_flank and right_extension <= right_flank:
+        deficit = left_extension - left_flank
+        left_index -= left_flank
+        right_index += right_extension + deficit
+    else:
+        left_index -= left_flank
+        right_index += right_flank
+    # extend the left and right ends of the target frame as symmetrically as possible
+    # use only the available number of bases on the flanks
+
+    sequence_in_frame = marked_sequence[left_index: right_index]
+    # completed target frame with marked editing sites
 
     return sequence_in_frame
 
